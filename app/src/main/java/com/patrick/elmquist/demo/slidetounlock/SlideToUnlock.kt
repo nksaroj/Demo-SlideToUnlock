@@ -1,3 +1,5 @@
+package com.patrick.elmquist.demo.slidetounlock
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.AnchoredDraggableState
@@ -66,7 +68,7 @@ fun SlideToUnlock(
         AnchoredDraggableState(
             initialValue = if (isLoading) Anchor.End else Anchor.Start,
             positionalThreshold = { distance -> distance * 0.8f },
-            velocityThreshold = { Track.VelocityThreshold },
+            velocityThreshold = { with(density) { Track.VelocityThreshold.toPx() } },
             animationSpec = androidx.compose.animation.core.spring()
         )
     }
@@ -89,7 +91,7 @@ fun SlideToUnlock(
     }
 
     LaunchedEffect(dragState.currentValue) {
-        if (dragState.currentValue == Anchor.End) {
+        if (dragState.currentValue == Anchor.End && !isLoading) {
             hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
             onUnlockRequested()
         }
@@ -119,7 +121,7 @@ fun SlideToUnlock(
 }
 
 @Composable
-fun Track(
+private fun Track(
     dragState: AnchoredDraggableState<Anchor>,
     swipeFraction: Float,
     enabled: Boolean,
@@ -172,21 +174,80 @@ fun Track(
     )
 }
 
+@Composable
+private fun Thumb(
+    isLoading: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .size(Thumb.Size)
+            .background(color = Color.White, shape = CircleShape)
+            .padding(8.dp),
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.padding(2.dp),
+                color = Color.Black,
+                strokeWidth = 2.dp
+            )
+        } else {
+            Image(
+                painter = painterResource(R.drawable.arrow_right),
+                contentDescription = "Slide to unlock",
+            )
+        }
+    }
+}
+
+@Composable
+private fun Hint(
+    text: String,
+    swipeFraction: Float,
+    modifier: Modifier = Modifier,
+) {
+    val hintTextColor by remember(swipeFraction) {
+        derivedStateOf { calculateHintTextColor(swipeFraction) }
+    }
+
+    Text(
+        text = text,
+        color = hintTextColor,
+        style = MaterialTheme.typography.titleSmall,
+        modifier = modifier
+    )
+}
+
+private val AlmostBlack = Color(0xFF111111)
+private val Yellow = Color(0xFFFFDB00)
+
+private fun calculateTrackColor(swipeFraction: Float): Color {
+    val endOfColorChangeFraction = 0.4f
+    val fraction = (swipeFraction / endOfColorChangeFraction).coerceIn(0f..1f)
+    return lerp(AlmostBlack, Yellow, fraction)
+}
+
+private fun calculateHintTextColor(swipeFraction: Float): Color {
+    val endOfFadeFraction = 0.35f
+    val fraction = (swipeFraction / endOfFadeFraction).coerceIn(0f..1f)
+    return lerp(Color.White, Color.White.copy(alpha = 0f), fraction)
+}
+
 private object Thumb {
     val Size = 40.dp
 }
 
 private object Track {
-    val VelocityThreshold = SwipeableDefaults.VelocityThreshold * 10
+    val VelocityThreshold = 125.dp
 }
 
-@Preview
+@Preview(showBackground = true)
 @Composable
-private fun Preview() {
+private fun SlideToUnlockPreview() {
     val previewBackgroundColor = Color(0xFFEDEDED)
     var isLoading by remember { mutableStateOf(false) }
+    
     DemoSlideToUnlockTheme {
-        val spacing = 88.dp
         Column(
             verticalArrangement = spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -195,7 +256,7 @@ private fun Preview() {
                 .background(previewBackgroundColor)
                 .padding(horizontal = 24.dp),
         ) {
-            Spacer(modifier = Modifier.height(spacing))
+            Spacer(modifier = Modifier.height(88.dp))
 
             Column(modifier = Modifier.width(IntrinsicSize.Max)) {
                 Row(
@@ -217,44 +278,27 @@ private fun Preview() {
                     Spacer(modifier = Modifier.widthIn(min = 16.dp))
                     Thumb(isLoading = true)
                 }
-
-
             }
 
-            Spacer(modifier = Modifier.height(spacing))
-
-            Text(text = "Inactive")
-            Track(
-                swipeState = SwipeableState(Anchor.Start),
-                swipeFraction = 0f,
-                enabled = true,
-                modifier = Modifier.fillMaxWidth(),
-                content = {},
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(text = "Active")
-            Track(
-                swipeState = SwipeableState(Anchor.Start),
-                swipeFraction = 1f,
-                enabled = true,
-                modifier = Modifier.fillMaxWidth(),
-                content = {},
-            )
-
-
-            Spacer(modifier = Modifier.height(spacing))
-
+            Spacer(modifier = Modifier.height(88.dp))
 
             SlideToUnlock(
                 isLoading = isLoading,
                 onUnlockRequested = { isLoading = true },
+                modifier = Modifier.fillMaxWidth()
             )
+            
             Spacer(modifier = Modifier.weight(1f))
+            
             OutlinedButton(
-                colors = ButtonDefaults.outlinedButtonColors(),
+                onClick = { isLoading = false },
                 shape = RoundedCornerShape(percent = 50),
-                onClick = { isLoading = false }) {
-                Text(text = "Cancel loading", style = MaterialTheme.typography.labelMedium)
+                colors = ButtonDefaults.outlinedButtonColors()
+            ) {
+                Text(
+                    text = "Cancel loading",
+                    style = MaterialTheme.typography.labelMedium
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
